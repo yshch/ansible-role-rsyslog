@@ -1,0 +1,26 @@
+#jinja2: trim_blocks:True, lstrip_blocks:True
+{{ ansible_managed | comment }}
+if (
+{% for filter in item.filters %}
+{% if not loop.first %}
+and
+{% endif %}
+{% if 'programname' in filter %}
+({% for programname in filter.programname %}{{ ' or ' if not loop.first else '' }}$programname == '{{ programname }}'{% endfor %})
+{% endif %}
+{% if 'severity' in filter %}
+({% for severity in filter.severity %}{{ ' or ' if not loop.first else '' }}$syslogseverity-text == '{{ severity }}'{% endfor %})
+{% endif %}
+{% if 'facility' in filter %}
+({% for facility in filter.facility %}{{ ' or ' if not loop.first else '' }}$syslogfacility-text == '{{ facility }}'{% endfor %})
+{% endif %}
+{% endfor %}
+)
+then {
+{% for action in item.actions %}
+action(type="omfile" file="{{ action.path }}"{% if 'flush' in action %}{{ ' flushOnTXEnd="on"' if action.flush else ' flushOnTXEnd="off"' }}{% endif %}{% if 'async' in action %}{{ ' asyncWriting="on"' if action.async else '' }}{% endif %})
+{% endfor %}
+{% if item.stop %}
+stop
+{% endif %}
+}

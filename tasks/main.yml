@@ -1,0 +1,41 @@
+---
+
+- name: install packages
+  ansible.builtin.apt:
+    name:
+      - rsyslog
+    state: present
+    update_cache: true
+    cache_valid_time: 86400
+    install_recommends: false
+
+- name: find ansible managed configs
+  ansible.builtin.find:
+    paths: /etc/rsyslog.d
+    patterns: "\\d+-ansible-rsyslog-*"
+    use_regex: true
+  register: _rsyslog_configs_current
+
+- name: cleanup ansible managed configs
+  ansible.builtin.file:
+    path: "{{ item.path }"
+    state: absent
+  loop: "{{ _rsyslog_configs_current.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - item.path | basename | regex_replace("^\d+-ansible-rsyslog-", "") not in
+        (rsyslog_configs |  default([]) | map(attribute="name") | list)
+
+- name: install configs
+  ansible.builtin.template:
+    src: rsyslog.d.j2
+    dest: "/etc/rsyslog.d/00-ansible-{{ item.name }}.conf"
+    validate: rsyslogd -N1 -f %s
+  loop: "{{ rsyslog_configs }}"
+  loop_control:
+    label: "/etc/rsyslog.d/00-ansible-{{ item.name }}.conf"
+  when:
+    - rsyslog_configs is defined
+    - rsyslog_configs | bool
+  notify: restart rsyslog
